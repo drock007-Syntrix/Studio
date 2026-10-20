@@ -7,8 +7,8 @@
 <meta name="apple-mobile-web-app-title" content="Studio">
 <meta name="theme-color" content="#0d0f14">
 <title>Syntrix Studio Free</title>
-<!-- Personal, no-cost build. Images come from Pollinations.ai's free public endpoint (no account, no key, no fees).
-     "Motion" clips are your generated still animated with a camera move in the browser; they are not AI video. -->
+<!-- Personal, no-cost build. On Cloudflare (worker.js) images come from Workers AI's free daily allowance;
+     anywhere else it falls back to Pollinations' old keyless link. Motion clips are stills animated in the browser, not AI video. -->
 <style>
   :root { --bg:#0d0f14; --panel:#161a22; --line:#262c38; --text:#e8ebf2; --muted:#8b93a6; --accent:#7c5cff; --ok:#3ecf8e; --bad:#ff5c7a; color-scheme:dark; }
   * { box-sizing:border-box; }
@@ -81,20 +81,21 @@
   <aside>
     <div class="tabs" id="kindTabs"><button data-kind="image" class="on">Image</button><button data-kind="motion">Motion clip</button></div>
     <div class="row2">
-      <div><label class="h" for="engine">Engine</label>
-        <select id="engine"><option value="flux">Flux (best)</option><option value="turbo">Turbo (fastest)</option></select></div>
+      <div><label class="h" for="engine">Quality</label><select id="engine"></select></div>
       <div><label class="h" for="count">Variations</label>
-        <select id="count"><option>1</option><option>2</option><option selected>4</option></select></div>
+        <select id="count"><option>1</option><option selected>2</option><option>4</option></select></div>
     </div>
     <div><label class="h" for="prompt">Prompt</label>
-      <textarea id="prompt">A red vintage pickup parked outside a rural septic service office at golden hour</textarea></div>
+      <textarea id="prompt">A red vintage pickup parked outside a rural septic service office at golden hour</textarea>
+      <p class="note">Describe one picture: subject, setting, light. Keep it under a few sentences.</p></div>
     <div><label class="h">Style</label><div class="chips" id="styles"></div></div>
     <div id="cameraWrap" hidden><label class="h">Camera move</label><div class="chips" id="cameras"></div>
       <p class="note">Motion clips animate your generated image with a camera move. They are not AI video.</p></div>
     <div><label class="h">Aspect</label><div class="chips" id="aspects"></div></div>
     <div><label class="h" for="seed">Seed (optional, same seed = same image)</label><input id="seed" inputmode="numeric" placeholder="random"></div>
+    <div id="pwWrap" hidden><label class="h" for="pw">Studio password</label><input id="pw" type="password" autocomplete="current-password"></div>
     <button class="go" id="go">Generate</button>
-    <p class="note">Free engine: Pollinations.ai. Images can take 10–60 seconds. Your gallery is saved in this browser only.</p>
+    <p class="note" id="engineNote"></p>
     <div class="err" id="err" role="alert"></div>
   </aside>
   <section>
@@ -118,20 +119,60 @@ const CAMERAS = [
   { id: 'handheld', label: 'Handheld' }, { id: 'pan', label: 'Pan' },
 ];
 const ASPECTS = { '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [1024, 1024] };
-const ENGINE_URL = 'https://image.pollinations.ai/prompt/';
+// Two engines: "cloud" = this site's own Cloudflare Worker (free daily allowance), "legacy" = Pollinations' old keyless URL.
+const ENGINES = {
+  cloud: [{ id: 'fast', label: 'Fast (4 steps)', steps: 4 }, { id: 'best', label: 'Best (8 steps)', steps: 8 }],
+  legacy: [{ id: 'flux', label: 'Flux' }, { id: 'turbo', label: 'Turbo' }],
+};
+const NOTES = {
+  cloud: 'Free engine: your Cloudflare daily allowance (about 100–170 images a day, resets 00:00 UTC). Gallery is saved on this device.',
+  legacy: 'Backup engine: Pollinations\' old free link. It is unreliable now; set up the Cloudflare version for dependable images.',
+};
 
 const $ = (id) => document.getElementById(id);
-const state = { kind: 'image', style: 'cinematic', camera: 'dolly-in', aspect: '16:9', filter: 'all', items: [], confirmDel: null };
-try { state.items = JSON.parse(localStorage.getItem('syntrixStudioFree') || '[]'); } catch {}
-// Items left "loading" by a closed tab get one fresh attempt.
-state.items.forEach((i) => { if (i.status === 'loading') i.status = 'retry'; });
-const save = () => { try { localStorage.setItem('syntrixStudioFree', JSON.stringify(state.items.slice(0, 300))); } catch {} };
+const state = { mode: 'legacy', locked: false, kind: 'image', style: 'cinematic', camera: 'dolly-in', aspect: '16:9', filter: 'all', items: [], confirmDel: null };
+const blobUrls = new Map();
+const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ls = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+state.items = ls.get('syntrixStudioFree', []);
+const save = () => ls.set('syntrixStudioFree', state.items.slice(0, 300));
 
-function buildUrl(it) {
+// ---- Image storage (IndexedDB): generated images are kept on this device, not in the cloud.
+let dbp;
+function db() {
+  dbp ||= new Promise((res, rej) => { const r = indexedDB.open('syntrixStudio', 1); r.onupgradeneeded = () => r.result.createObjectStore('img'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  return dbp;
+}
+async function idb(mode, fn) { const d = await db(); return new Promise((res, rej) => { const tx = d.transaction('img', mode); const q = fn(tx.objectStore('img')); tx.oncomplete = () => res(q?.result); tx.onerror = () => rej(tx.error); }); }
+const putImg = (id, blob) => idb('readwrite', (s) => s.put(blob, id)).catch(() => {});
+const delImg = (id) => idb('readwrite', (s) => s.delete(id)).catch(() => {});
+async function loadImg(id) {
+  if (blobUrls.has(id)) return blobUrls.get(id);
+  const blob = await idb('readonly', (s) => s.get(id)).catch(() => null);
+  const url = blob ? URL.createObjectURL(blob) : null;
+  blobUrls.set(id, url);
+  return url;
+}
+
+function fullPrompt(it) { return [it.prompt, STYLES.find((s) => s.id === it.style)?.s].filter(Boolean).join(', '); }
+function legacyUrl(it) {
   const [w, h] = ASPECTS[it.aspect];
-  const full = [it.prompt, STYLES.find((s) => s.id === it.style)?.s].filter(Boolean).join(', ');
-  return `${ENGINE_URL}${encodeURIComponent(full)}?width=${w}&height=${h}&seed=${it.seed}&model=${it.engine}&nologo=true`;
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt(it))}?width=${w}&height=${h}&seed=${it.seed}&model=${it.engine}&nologo=true`;
+}
+
+async function runCloud(it) {
+  try {
+    const steps = ENGINES.cloud.find((e) => e.id === it.engine)?.steps || 4;
+    const res = await fetch('/api/image', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: fullPrompt(it), seed: it.seed, steps, password: $('pw').value }) });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Error ${res.status}`); }
+    const blob = await res.blob();
+    await putImg(it.id, blob);
+    blobUrls.set(it.id, URL.createObjectURL(blob));
+    it.status = 'done';
+  } catch (e) { it.status = 'failed'; it.error = e.message; }
+  save(); render();
 }
 
 function chips(el, items, key) {
@@ -143,10 +184,16 @@ function mediaHtml(it, big) {
   const cls = it.kind === 'motion' ? `m-${it.camera}` : '';
   const ar = it.aspect.replace(':', '/');
   const badge = it.kind === 'motion' && !big ? `<span class="badge">▶ ${esc(CAMERAS.find((c) => c.id === it.camera)?.label)}</span>` : '';
-  if (it.status === 'failed') return `<div class="media" style="aspect-ratio:${ar}"><span class="failed">Didn't generate. Tap ↻ to retry.</span></div>`;
+  if (it.status === 'failed') return `<div class="media" style="aspect-ratio:${ar}"><span class="failed" style="padding:12px;text-align:center">${esc(it.error || "Didn't generate.")}<br>Tap ↻ to try again.</span></div>`;
+  let src = '';
+  if (it.mode === 'cloud') {
+    src = blobUrls.get(it.id) || '';
+    if (it.status === 'done' && !blobUrls.has(it.id)) loadImg(it.id).then((u) => { if (u) render(); else { it.status = 'failed'; it.error = 'Image no longer on this device.'; save(); render(); } });
+  } else src = it.url;
+  const waiting = it.status !== 'done' || !src;
   return `<div class="media ${cls}" data-open="${it.id}" style="aspect-ratio:${ar}">
-    ${it.status === 'done' ? '' : '<div class="spin"></div>'}
-    <img data-img="${it.id}" src="${esc(it.url)}" alt="${esc(it.prompt)}" loading="lazy" ${it.status === 'done' ? '' : 'style="opacity:0"'}>${badge}</div>`;
+    ${waiting ? '<div class="spin"></div>' : ''}
+    ${src ? `<img data-img="${it.id}" src="${esc(src)}" alt="${esc(it.prompt)}" ${it.status === 'done' ? '' : 'style="opacity:0"'}>` : ''}${badge}</div>`;
 }
 
 function render() {
@@ -157,7 +204,7 @@ function render() {
       ${mediaHtml(it)}
       <div class="meta">
         <p title="${esc(it.prompt)}">${esc(it.prompt)}</p>
-        <div class="row"><span>${it.kind === 'motion' ? 'Motion' : 'Image'} · ${esc(it.engine)} · seed ${it.seed}</span>
+        <div class="row"><span>${it.kind === 'motion' ? 'Motion' : 'Image'} · seed ${it.seed}</span>
           <span class="pill ${it.status === 'done' ? 'done' : it.status === 'failed' ? 'failed' : ''}">${it.status === 'done' ? 'ready' : it.status === 'failed' ? 'failed' : 'generating'}</span></div>
         <div class="row"><span>${new Date(it.at).toLocaleString()}</span>
           ${state.confirmDel === it.id
@@ -168,36 +215,37 @@ function render() {
               <button data-del="${it.id}" title="Delete" aria-label="Delete">✕</button></span>`}</div>
       </div>
     </div>`).join('');
-  // Wire load/error per image; status is tracked so the gallery survives reloads.
+  // Legacy images load straight from the URL; track load/error so the gallery remembers the result.
   document.querySelectorAll('img[data-img]').forEach((img) => {
     const it = state.items.find((i) => i.id === img.dataset.img);
-    if (it.status === 'done') return;
-    // Update this card in place so finished images aren't re-requested from the engine.
+    if (it.mode === 'cloud' || it.status === 'done') return;
     const ok = () => {
       it.status = 'done'; save(); img.style.opacity = 1;
       img.parentElement.querySelector('.spin')?.remove();
-      const pill = img.closest('.card').querySelector('.pill');
-      pill.className = 'pill done'; pill.textContent = 'ready';
+      const pill = img.closest('.card').querySelector('.pill'); pill.className = 'pill done'; pill.textContent = 'ready';
     };
-    const bad = () => { it.status = 'failed'; save(); render(); };
+    const bad = () => { it.status = 'failed'; it.error = 'The backup engine refused this one.'; save(); render(); };
     if (img.complete && img.naturalWidth) ok(); else { img.onload = ok; img.onerror = bad; }
   });
+}
+
+function start(src) {
+  const it = { ...src, id: uid(), at: Date.now(), fav: false, status: 'loading', error: null, mode: state.mode };
+  if (it.mode === 'cloud') runCloud(it); else it.url = legacyUrl(it);
+  state.items.unshift(it);
+  return it;
 }
 
 function addItems() {
   const prompt = $('prompt').value.trim();
   if (!prompt) { $('err').textContent = 'Write a prompt first.'; return; }
+  if (state.locked && !$('pw').value) { $('err').textContent = 'Enter your studio password first.'; $('pw').focus(); return; }
   $('err').textContent = '';
-  const n = Number($('count').value);
+  ls.set('studioPw', $('pw').value);
   const fixed = $('seed').value.trim();
-  for (let k = 0; k < n; k++) {
-    const it = {
-      id: Math.random().toString(36).slice(2, 10), kind: state.kind, prompt, style: state.style, camera: state.camera,
-      aspect: state.aspect, engine: $('engine').value, at: Date.now(), fav: false, status: 'loading',
-      seed: fixed && /^\d+$/.test(fixed) ? Number(fixed) + k : Math.floor(Math.random() * 1e9),
-    };
-    it.url = buildUrl(it);
-    state.items.unshift(it);
+  for (let k = 0; k < Number($('count').value); k++) {
+    start({ kind: state.kind, prompt, style: state.style, camera: state.camera, aspect: state.aspect, engine: $('engine').value,
+      seed: /^\d+$/.test(fixed) ? Number(fixed) + k : Math.floor(Math.random() * 1e9) });
   }
   save(); state.filter = 'all'; setFilter(); render();
 }
@@ -210,23 +258,20 @@ $('grid').onclick = (e) => {
   if (d.fav) { const it = find(d.fav); it.fav = !it.fav; save(); return render(); }
   if (d.del) { state.confirmDel = d.del; return render(); }
   if (d.no) { state.confirmDel = null; return render(); }
-  if (d.yes) { state.items = state.items.filter((i) => i.id !== d.yes); state.confirmDel = null; save(); return render(); }
-  if (d.retry) {
-    const src = find(d.retry);
-    const it = { ...src, id: Math.random().toString(36).slice(2, 10), seed: Math.floor(Math.random() * 1e9), status: 'loading', fav: false, at: Date.now() };
-    it.url = buildUrl(it); state.items.unshift(it); save(); return render();
-  }
+  if (d.yes) { state.items = state.items.filter((i) => i.id !== d.yes); delImg(d.yes); state.confirmDel = null; save(); return render(); }
+  if (d.retry) { start({ ...find(d.retry), engine: $('engine').value, seed: Math.floor(Math.random() * 1e9) }); save(); return render(); }
   if (d.reuse) {
     const it = find(d.reuse);
     Object.assign(state, { kind: it.kind, style: it.style, camera: it.camera, aspect: it.aspect });
-    $('prompt').value = it.prompt; $('engine').value = it.engine; $('seed').value = it.seed;
+    $('prompt').value = it.prompt; $('seed').value = it.seed;
     return setup();
   }
   if (d.open) {
     const it = find(d.open); if (it.status !== 'done') return;
-    $('viewerMedia').innerHTML = `<div class="${it.kind === 'motion' ? 'm-' + it.camera : ''}" style="overflow:hidden"><img src="${esc(it.url)}" alt=""></div>`;
+    const src = it.mode === 'cloud' ? blobUrls.get(it.id) : it.url; if (!src) return;
+    $('viewerMedia').innerHTML = `<div class="${it.kind === 'motion' ? 'm-' + it.camera : ''}" style="overflow:hidden"><img src="${esc(src)}" alt=""></div>`;
     $('viewerPrompt').textContent = it.prompt;
-    $('viewerActions').innerHTML = `<a href="${esc(it.url)}" target="_blank" rel="noopener">Open full size (right-click to save)</a><button type="button" id="closeV">Close</button>`;
+    $('viewerActions').innerHTML = `<a href="${esc(src)}" target="_blank" rel="noopener" ${it.mode === 'cloud' ? `download="studio-${it.id}.jpg"` : ''}>Save image</a><button type="button" id="closeV">Close</button>`;
     $('closeV').onclick = () => $('viewer').close();
     $('viewer').showModal();
   }
@@ -245,7 +290,19 @@ function setup() {
   chips($('cameras'), CAMERAS, 'camera');
   chips($('aspects'), Object.keys(ASPECTS).map((a) => ({ id: a, label: a })), 'aspect');
 }
-setup(); render();
+function setMode(mode, locked) {
+  state.mode = mode; state.locked = locked;
+  $('engine').innerHTML = ENGINES[mode].map((e) => `<option value="${e.id}">${e.label}</option>`).join('');
+  $('engineNote').textContent = NOTES[mode];
+  $('pwWrap').hidden = !locked;
+}
+
+// Items that were mid-generation when the page closed can't resume.
+state.items.forEach((i) => { i.mode ||= 'legacy'; if (i.status === 'loading' && i.mode === 'cloud') { i.status = 'failed'; i.error = 'Interrupted.'; } });
+$('pw').value = ls.get('studioPw', '');
+setMode('legacy', false); setup(); render();
+// Use this site's own free engine when it has one (the Cloudflare version); otherwise fall back.
+fetch('/api/health').then((r) => r.ok ? r.json() : null).then((h) => { if (h?.ok) { setMode('cloud', h.locked); render(); } }).catch(() => {});
 </script>
 </body>
 </html>
