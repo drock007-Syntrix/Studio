@@ -2,59 +2,122 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Studio">
 <meta name="theme-color" content="#0d0f14">
-<title>Syntrix Studio Free</title>
-<!-- Personal, no-cost build. On Cloudflare (worker.js) images come from Workers AI's free daily allowance;
-     anywhere else it falls back to Pollinations' old keyless link. Motion clips are stills animated in the browser, not AI video. -->
+<title>Syntrix Studio</title>
+<!-- Personal, no-cost studio. Runs as a Cloudflare Worker (worker.js): images come from Workers AI's free plan.
+     Motion clips are stills animated in the browser, not AI video. History and images live in this browser. -->
 <style>
-  :root { --bg:#0d0f14; --panel:#161a22; --line:#262c38; --text:#e8ebf2; --muted:#8b93a6; --accent:#7c5cff; --ok:#3ecf8e; --bad:#ff5c7a; color-scheme:dark; }
+  /* Layout: composer column on the left, masonry gallery on the right; one column under 860px. */
+  :root {
+    --bg:#0d0f14; --panel:#151922; --raise:#1c212c; --line:#272d3a; --text:#e8ebf2; --muted:#8c94a7;
+    --accent:#7c5cff; --accent-soft:#251e45; --ok:#3ecf8e; --warn:#f5b84a; --bad:#ff5c7a;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color-scheme: dark;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-  header { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--line); }
-  header b { font-size:16px; letter-spacing:.3px; }
-  .tag { background:var(--panel); border:1px solid var(--line); padding:4px 10px; border-radius:20px; color:var(--ok); font-size:12px; }
-  main { display:grid; grid-template-columns:360px 1fr; min-height:calc(100vh - 53px); }
-  aside { border-right:1px solid var(--line); padding:18px; display:flex; flex-direction:column; gap:14px; }
-  label.h { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; display:block; margin-bottom:4px; }
-  .tabs, .chips { display:flex; gap:6px; flex-wrap:wrap; }
-  .tabs button, .chips button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer; font:inherit; }
-  .tabs button.on, .chips button.on { border-color:var(--accent); background:#221c3d; }
-  button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  select, textarea, input { width:100%; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px; font:inherit; }
-  textarea { min-height:110px; resize:vertical; }
-  .row2 { display:flex; gap:10px; } .row2 > div { flex:1; min-width:0; }
-  .go { background:var(--accent); color:#fff; border:0; border-radius:10px; padding:12px; font-weight:600; cursor:pointer; font-size:15px; }
+  html, body { height:100%; }
+  body { margin:0; font:14px/1.45 var(--font); background:var(--bg); color:var(--text); font-variant-numeric:tabular-nums; }
+  button { font:inherit; color:inherit; }
+  button, select, textarea, input { -webkit-tap-highlight-color:transparent; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:12px; padding-block:10px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); border-bottom:1px solid var(--line); }
+  .brand { font-weight:650; letter-spacing:.2px; font-size:16px; }
+  .lamp { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }
+  .lamp i { width:9px; height:9px; border-radius:50%; background:var(--bad); }
+  .lamp.ready i { background:var(--ok); }
+  .lamp.busy i { background:var(--warn); animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity:.35; } }
+  main { display:grid; grid-template-columns:380px minmax(0,1fr); min-height:calc(100% - 50px); }
+  aside { border-right:1px solid var(--line); padding:16px; display:flex; flex-direction:column; gap:14px; }
+  section.gal { padding:16px; min-width:0; display:flex; flex-direction:column; gap:12px; }
+  label.h, .h { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; display:block; margin-bottom:5px; }
+  .seg, .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .seg button, .chips button, .btn { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer; }
+  .seg button.on, .chips button.on { border-color:var(--accent); background:var(--accent-soft); }
+  .btn:hover, .chips button:hover, .seg button:hover { border-color:#3a4254; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  select, textarea, input[type=text], input[type=password], input[inputmode] { width:100%; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px; font:inherit; }
+  textarea { min-height:104px; resize:vertical; }
+  .row { display:flex; gap:10px; align-items:center; } .row > * { min-width:0; }
+  .grow { flex:1; }
+  .note { color:var(--muted); font-size:12px; margin:4px 0 0; }
+  .err { color:var(--bad); min-height:1em; font-size:13px; }
+  .go { background:var(--accent); color:#fff; border:0; border-radius:10px; padding:12px; font-weight:600; cursor:pointer; font-size:15px; display:flex; justify-content:center; gap:8px; }
   .go:disabled { opacity:.5; cursor:not-allowed; }
-  .note { color:var(--muted); font-size:12px; margin:0; }
-  .err { color:var(--bad); min-height:1em; }
-  section { padding:18px; min-width:0; }
-  .bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px; flex-wrap:wrap; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-  .media { background:#0a0c10; display:grid; place-items:center; cursor:pointer; overflow:hidden; position:relative; max-width:100%; }
+  .go kbd { font:inherit; opacity:.7; font-size:12px; }
+  /* Model picker */
+  .picker { position:relative; }
+  .pick-btn { width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:9px; cursor:pointer; }
+  .tag { font-size:11px; border:1px solid var(--line); border-radius:10px; padding:1px 7px; color:var(--muted); white-space:nowrap; }
+  .tag.free { color:var(--ok); border-color:#25563f; }
+  .tag.daily { color:var(--warn); border-color:#5a4520; }
+  .pop { position:absolute; z-index:20; top:calc(100% + 6px); left:0; right:0; background:var(--raise); border:1px solid var(--line); border-radius:10px; padding:8px; box-shadow:0 12px 30px #0008; }
+  .pop input { margin-bottom:6px; }
+  .opt { display:block; width:100%; text-align:left; background:none; border:0; border-radius:8px; padding:8px; cursor:pointer; }
+  .opt:hover, .opt.on { background:var(--accent-soft); }
+  .opt b { display:flex; justify-content:space-between; gap:8px; font-weight:600; }
+  .opt span { color:var(--muted); font-size:12px; }
+  /* Sliders */
+  .slider { display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:center; }
+  .slider input { grid-column:1 / -1; width:100%; accent-color:var(--accent); }
+  .slider output { color:var(--muted); font-size:12px; }
+  /* Start image slot */
+  .slot { display:flex; gap:10px; align-items:center; background:var(--panel); border:1px dashed var(--line); border-radius:10px; padding:8px; }
+  .slot img { width:56px; height:56px; object-fit:cover; border-radius:6px; }
+  .slot .grow { color:var(--muted); font-size:12px; }
+  details.more summary { cursor:pointer; color:var(--muted); font-size:12px; }
+  details.more[open] summary { margin-bottom:10px; }
+  details.more > div { display:flex; flex-direction:column; gap:12px; }
+  /* Gallery */
+  .rail { display:flex; gap:6px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+  .tabs { display:flex; gap:4px; flex-wrap:wrap; }
+  .tabs button { background:none; border:1px solid transparent; border-radius:8px; padding:6px 10px; cursor:pointer; color:var(--muted); }
+  .tabs button[aria-selected=true] { color:var(--text); border-color:var(--line); background:var(--panel); }
+  .tabs .n { font-size:11px; color:var(--muted); margin-left:4px; }
+  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; background:var(--raise); border:1px solid var(--line); border-radius:10px; padding:8px 10px; position:relative; overflow:hidden; }
+  .bar .grow { font-size:13px; }
+  .bar .drain { position:absolute; left:0; bottom:0; height:2px; background:var(--accent); animation:drain 6s linear forwards; }
+  @keyframes drain { from { width:100%; } to { width:0; } }
+  .grid { columns:4 220px; column-gap:12px; }
+  .tile { break-inside:avoid; margin-bottom:12px; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; position:relative; }
+  .tile.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .media { position:relative; overflow:hidden; display:grid; place-items:center; cursor:pointer; background:linear-gradient(135deg,#1b2030,#141826); max-width:100%; }
   .media img { width:100%; height:100%; object-fit:cover; display:block; }
-  .media .badge { position:absolute; top:8px; left:8px; background:#000a; padding:2px 8px; border-radius:10px; font-size:11px; }
-  .meta { padding:10px; display:flex; flex-direction:column; gap:6px; }
-  .meta p { margin:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .row { display:flex; justify-content:space-between; align-items:center; color:var(--muted); font-size:12px; gap:6px; }
-  .row button { background:none; border:0; color:var(--muted); cursor:pointer; font-size:15px; padding:2px 4px; }
-  .pill { padding:1px 8px; border-radius:10px; font-size:11px; border:1px solid var(--line); }
-  .done { color:var(--ok); } .failed { color:var(--bad); }
-  .spin { width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:s 1s linear infinite; position:absolute; }
-  @keyframes s { to { transform:rotate(360deg); } }
-  .empty { color:var(--muted); padding:40px; text-align:center; grid-column:1/-1; }
-  dialog { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:12px; max-width:min(1000px,95vw); padding:12px; }
-  dialog::backdrop { background:#000b; }
-  dialog .stage { overflow:hidden; border-radius:8px; max-height:70vh; display:grid; place-items:center; }
-  dialog img { max-width:100%; max-height:70vh; display:block; }
-  dialog .actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
-  dialog .actions a, dialog .actions button { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 10px; text-decoration:none; cursor:pointer; font:inherit; }
-  .confirm { display:flex; gap:6px; align-items:center; }
-  .confirm button { border:1px solid var(--line); border-radius:6px; font-size:12px; color:var(--text); }
-  /* Camera moves for Motion clips (applied to the image, looping). */
+  .media.loading { background:linear-gradient(110deg,#171b26 30%,#232a3b 50%,#171b26 70%); background-size:200% 100%; animation:shimmer 1.4s linear infinite; }
+  @keyframes shimmer { to { background-position:-200% 0; } }
+  .media .fail { color:var(--bad); padding:14px; text-align:center; font-size:13px; }
+  .badge { position:absolute; top:8px; left:8px; background:#000a; padding:2px 8px; border-radius:10px; font-size:11px; }
+  .check { position:absolute; top:8px; right:8px; width:24px; height:24px; border-radius:6px; border:1px solid #fff8; background:#0008; cursor:pointer; display:grid; place-items:center; opacity:0; transition:opacity .15s; }
+  .tile:hover .check, .selecting .check, .check.on { opacity:1; }
+  .check.on { background:var(--accent); border-color:var(--accent); }
+  .meta { padding:9px 10px; display:flex; flex-direction:column; gap:5px; }
+  .meta p { margin:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:13px; }
+  .line { display:flex; justify-content:space-between; align-items:center; gap:6px; color:var(--muted); font-size:12px; }
+  .acts { display:flex; gap:2px; }
+  .acts button { background:none; border:0; color:var(--muted); cursor:pointer; padding:3px 5px; border-radius:6px; font-size:14px; }
+  .acts button:hover { color:var(--text); background:var(--raise); }
+  .empty { border:1px dashed var(--line); border-radius:12px; padding:28px; text-align:center; color:var(--muted); display:flex; flex-direction:column; gap:12px; align-items:center; }
+  .empty .chips { justify-content:center; }
+  .setup { text-align:left; max-width:560px; color:var(--text); }
+  .setup ol { margin:6px 0 0; padding-left:20px; color:var(--muted); }
+  /* Dialogs */
+  dialog { background:var(--raise); color:var(--text); border:1px solid var(--line); border-radius:14px; padding:14px; max-width:min(1100px, 96vw); width:100%; }
+  dialog::backdrop { background:#000c; }
+  .vgrid { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:14px; }
+  .stage { overflow:hidden; border-radius:10px; display:grid; place-items:center; background:#0a0c10; max-height:75vh; }
+  .stage img { max-width:100%; max-height:75vh; display:block; }
+  .details { display:flex; flex-direction:column; gap:10px; font-size:13px; min-width:0; }
+  .details .prompt { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px; max-height:160px; overflow:auto; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; color:var(--muted); }
+  .kv b { color:var(--text); font-weight:500; overflow-wrap:anywhere; }
+  .dacts { display:flex; flex-wrap:wrap; gap:6px; }
+  .assets { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; max-height:55vh; overflow:auto; margin-top:10px; }
+  .assets button { padding:0; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--panel); cursor:pointer; aspect-ratio:1; }
+  .assets img { width:100%; height:100%; object-fit:cover; display:block; }
+  /* Camera moves for Motion clips (applied to the still, looping). */
   .m-dolly-in img { animation:dollyIn 6s ease-in-out infinite alternate; }
   .m-dolly-out img { animation:dollyOut 6s ease-in-out infinite alternate; }
   .m-orbit img { animation:orbit 8s ease-in-out infinite alternate; }
@@ -71,40 +134,118 @@
   @keyframes fpv { from { transform:scale(1) translateY(0); } to { transform:scale(1.6) translateY(4%); } }
   @keyframes hand { 0%,100% { transform:scale(1.08) translate(0,0) rotate(0); } 25% { transform:scale(1.08) translate(1%,-.6%) rotate(.4deg); } 50% { transform:scale(1.08) translate(-.6%,.8%) rotate(-.3deg); } 75% { transform:scale(1.08) translate(-1%,-.4%) rotate(.2deg); } }
   @keyframes pan { from { transform:scale(1.3) translateX(-10%); } to { transform:scale(1.3) translateX(10%); } }
-  @media (prefers-reduced-motion: reduce) { .media img, dialog img { animation:none !important; } }
-  @media (max-width:800px) { main { grid-template-columns:1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } header, aside, section { padding-left:16px; padding-right:16px; } }
+  @media (prefers-reduced-motion: reduce) { .media img, .stage img, .media.loading, .lamp i { animation:none !important; } }
+  @media (max-width:860px) {
+    main { grid-template-columns:1fr; }
+    aside { border-right:0; border-bottom:1px solid var(--line); }
+    aside, section.gal { padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
+    .vgrid { grid-template-columns:1fr; }
+  }
 </style>
 </head>
 <body>
-<header><b>Syntrix Studio</b><span class="tag">Free · no keys · no fees</span></header>
+<header class="top">
+  <span class="brand">Syntrix Studio</span>
+  <span class="lamp" id="lamp"><i></i><span id="lampText">Checking engine…</span></span>
+</header>
 <main>
   <aside>
-    <div class="tabs" id="kindTabs"><button data-kind="image" class="on">Image</button><button data-kind="motion">Motion clip</button></div>
-    <div class="row2">
-      <div><label class="h" for="engine">Quality</label><select id="engine"></select></div>
-      <div><label class="h" for="count">Variations</label>
-        <select id="count"><option>1</option><option selected>2</option><option>4</option></select></div>
+    <div class="seg" id="kindSeg" role="tablist" aria-label="Output">
+      <button data-kind="image" class="on">Image</button><button data-kind="motion">Motion clip</button>
     </div>
-    <div><label class="h" for="prompt">Prompt</label>
-      <textarea id="prompt">A red vintage pickup parked outside a rural septic service office at golden hour</textarea>
-      <p class="note">Describe one picture: subject, setting, light. Keep it under a few sentences.</p></div>
-    <div><label class="h">Style</label><div class="chips" id="styles"></div></div>
-    <div id="cameraWrap" hidden><label class="h">Camera move</label><div class="chips" id="cameras"></div>
-      <p class="note">Motion clips animate your generated image with a camera move. They are not AI video.</p></div>
-    <div><label class="h">Aspect</label><div class="chips" id="aspects"></div></div>
-    <div><label class="h" for="seed">Seed (optional, same seed = same image)</label><input id="seed" inputmode="numeric" placeholder="random"></div>
+
+    <div class="picker">
+      <span class="h">Model</span>
+      <button class="pick-btn" id="pickBtn" aria-haspopup="listbox" aria-expanded="false"></button>
+      <div class="pop" id="pop" hidden>
+        <input type="text" id="pickSearch" placeholder="Search models" autocomplete="off">
+        <div id="pickList" role="listbox"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="row" style="justify-content:space-between"><label class="h" for="prompt">Prompt</label>
+        <button class="btn" id="enhance" type="button" style="padding:3px 8px;font-size:12px">✨ Enhance</button></div>
+      <textarea id="prompt" placeholder="Describe one picture: subject, setting, light."></textarea>
+    </div>
+
+    <div id="slotWrap">
+      <span class="h" id="slotLabel">Start image (optional)</span>
+      <div class="slot" id="slot"></div>
+    </div>
+
+    <div id="aspectWrap"><span class="h">Aspect</span><div class="chips" id="aspects"></div></div>
+    <div><span class="h">Style</span><div class="chips" id="styles"></div></div>
+    <div id="cameraWrap" hidden><span class="h">Camera move</span><div class="chips" id="cameras"></div>
+      <p class="note">Motion clips animate your still with a camera move. They are not AI video.</p></div>
+
+    <div class="row">
+      <div class="grow"><label class="h" for="count">Results</label>
+        <select id="count"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></div>
+      <div class="grow"><label class="h" for="seed">Seed</label><input id="seed" inputmode="numeric" placeholder="random"></div>
+    </div>
+
+    <details class="more" id="more"><summary>Advanced settings</summary><div id="adv"></div></details>
+
     <div id="pwWrap" hidden><label class="h" for="pw">Studio password</label><input id="pw" type="password" autocomplete="current-password"></div>
-    <button class="go" id="go">Generate</button>
-    <p class="note" id="engineNote"></p>
+    <button class="go" id="go" type="button"><span id="goText">Generate</span><kbd>⌘↵</kbd></button>
     <div class="err" id="err" role="alert"></div>
   </aside>
-  <section>
-    <div class="bar"><b>Gallery</b><div class="tabs" id="filter"><button data-f="all" class="on">All</button><button data-f="fav">Favorites</button></div></div>
-    <div class="grid" id="grid"></div>
+
+  <section class="gal">
+    <div class="rail">
+      <div class="tabs" id="tabs" role="tablist" aria-label="Gallery"></div>
+      <button class="btn" id="selectBtn" type="button">Select</button>
+    </div>
+    <div id="bars"></div>
+    <div id="grid"></div>
   </section>
 </main>
-<dialog id="viewer"><div class="stage" id="viewerMedia"></div><p id="viewerPrompt"></p><div class="actions" id="viewerActions"></div></dialog>
+
+<dialog id="viewer" aria-label="Result">
+  <div class="vgrid">
+    <div class="stage" id="vStage"></div>
+    <div class="details">
+      <div class="row" style="justify-content:space-between"><span class="h" style="margin:0">Prompt</span><button class="btn" id="vCopy" style="padding:3px 8px;font-size:12px">Copy</button></div>
+      <div class="prompt" id="vPrompt"></div>
+      <div class="kv" id="vKv"></div>
+      <div class="dacts" id="vActs"></div>
+      <p class="note">← → to move between results. Esc to close.</p>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="assetDlg" aria-label="Choose a start image" style="max-width:720px">
+  <div class="row" style="justify-content:space-between">
+    <div class="tabs" id="assetTabs" role="tablist">
+      <button data-a="uploads" aria-selected="true">Uploads</button><button data-a="history" aria-selected="false">From history</button>
+    </div>
+    <div class="row" style="width:auto"><label class="btn" for="file" style="cursor:pointer">Upload photo</label><button class="btn" id="assetClose">Close</button></div>
+  </div>
+  <input type="file" id="file" accept="image/*" hidden>
+  <div class="assets" id="assetGrid"></div>
+</dialog>
+
 <script>
+// ---------------- Catalog: the single source of truth for models and their settings ----------------
+const SIZES = {
+  xl: { '16:9': [1344, 768], '9:16': [768, 1344], '1:1': [1024, 1024], '4:3': [1152, 896], '3:4': [896, 1152] },
+  sd: { '16:9': [896, 512], '9:16': [512, 896], '1:1': [640, 640], '4:3': [768, 576], '3:4': [576, 768] },
+  sq: { '1:1': [1024, 1024] },
+};
+const MODELS = [
+  { id: 'flux-schnell', label: 'FLUX.1 schnell', blurb: 'Best overall quality. Square only.', cost: 'daily', sizes: 'sq',
+    steps: { min: 1, max: 8, def: 4 }, image: false },
+  { id: 'sdxl-lightning', label: 'SDXL Lightning', blurb: 'Fast, any shape. Can start from a photo.', cost: 'free', sizes: 'xl',
+    steps: { min: 1, max: 20, def: 8 }, negative: true, image: 'optional' },
+  { id: 'sdxl-base', label: 'SDXL Base', blurb: 'Slower, most control: guidance and negative prompt.', cost: 'free', sizes: 'xl',
+    steps: { min: 5, max: 20, def: 20 }, guidance: { min: 1, max: 15, def: 7.5 }, negative: true, image: 'optional' },
+  { id: 'dreamshaper', label: 'DreamShaper 8', blurb: 'Illustrated, painterly looks. Fast.', cost: 'free', sizes: 'sd',
+    steps: { min: 1, max: 20, def: 8 }, negative: true, image: 'optional' },
+  { id: 'sd15-img2img', label: 'Restyle a photo', blurb: 'Upload a photo and turn it into something new.', cost: 'free', sizes: 'sd',
+    steps: { min: 5, max: 20, def: 20 }, guidance: { min: 1, max: 15, def: 7.5 }, negative: true, image: 'required' },
+];
+const COST = { free: ['Free', 'free'], daily: ['Daily allowance', 'daily'] };
 const STYLES = [
   { id: 'none', label: 'No style', s: '' },
   { id: 'cinematic', label: 'Cinematic', s: 'cinematic lighting, anamorphic lens, film grain, shallow depth of field' },
@@ -118,191 +259,430 @@ const CAMERAS = [
   { id: 'crane-up', label: 'Crane up' }, { id: 'crash-zoom', label: 'Crash zoom' }, { id: 'fpv', label: 'FPV push' },
   { id: 'handheld', label: 'Handheld' }, { id: 'pan', label: 'Pan' },
 ];
-const ASPECTS = { '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [1024, 1024] };
-// Two engines: "cloud" = this site's own Cloudflare Worker (free daily allowance), "legacy" = Pollinations' old keyless URL.
-const ENGINES = {
-  cloud: [{ id: 'fast', label: 'Fast (4 steps)', steps: 4 }, { id: 'best', label: 'Best (8 steps)', steps: 8 }],
-  legacy: [{ id: 'flux', label: 'Flux' }, { id: 'turbo', label: 'Turbo' }],
-};
-const NOTES = {
-  cloud: 'Free engine: your Cloudflare daily allowance (about 100–170 images a day, resets 00:00 UTC). Gallery is saved on this device.',
-  legacy: 'Backup engine: Pollinations\' old free link. It is unreliable now; set up the Cloudflare version for dependable images.',
-};
+const STARTERS = [
+  'Red vintage pickup parked outside a rural septic service office at golden hour',
+  'Hemp shop storefront at night, neon sign reflecting on wet pavement',
+  'Glass bottle of CBD oil on a slate slab, soft studio light, product ad',
+];
+const TABS = [
+  { id: 'all', label: 'All' }, { id: 'image', label: 'Images' }, { id: 'motion', label: 'Motion' },
+  { id: 'fav', label: 'Favorites' }, { id: 'uploads', label: 'Uploads' },
+];
+const MAX_HISTORY = 300; // favorites never age out
 
-const $ = (id) => document.getElementById(id);
-const state = { mode: 'legacy', locked: false, kind: 'image', style: 'cinematic', camera: 'dolly-in', aspect: '16:9', filter: 'all', items: [], confirmDel: null };
-const blobUrls = new Map();
-const uid = () => Math.random().toString(36).slice(2, 10);
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const ls = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
-state.items = ls.get('syntrixStudioFree', []);
-const save = () => ls.set('syntrixStudioFree', state.items.slice(0, 300));
-
-// ---- Image storage (IndexedDB): generated images are kept on this device, not in the cloud.
+// ---------------- Storage: metadata in localStorage, image files in IndexedDB ----------------
+const ls = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
 let dbp;
 function db() {
-  dbp ||= new Promise((res, rej) => { const r = indexedDB.open('syntrixStudio', 1); r.onupgradeneeded = () => r.result.createObjectStore('img'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  dbp ||= new Promise((res, rej) => {
+    const r = indexedDB.open('syntrixStudio', 2);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('img')) r.result.createObjectStore('img'); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
   return dbp;
 }
-async function idb(mode, fn) { const d = await db(); return new Promise((res, rej) => { const tx = d.transaction('img', mode); const q = fn(tx.objectStore('img')); tx.oncomplete = () => res(q?.result); tx.onerror = () => rej(tx.error); }); }
-const putImg = (id, blob) => idb('readwrite', (s) => s.put(blob, id)).catch(() => {});
-const delImg = (id) => idb('readwrite', (s) => s.delete(id)).catch(() => {});
-async function loadImg(id) {
-  if (blobUrls.has(id)) return blobUrls.get(id);
-  const blob = await idb('readonly', (s) => s.get(id)).catch(() => null);
-  const url = blob ? URL.createObjectURL(blob) : null;
-  blobUrls.set(id, url);
-  return url;
+async function idb(mode, fn) {
+  const d = await db();
+  return new Promise((res, rej) => { const tx = d.transaction('img', mode); const q = fn(tx.objectStore('img')); tx.oncomplete = () => res(q?.result); tx.onerror = () => rej(tx.error); });
+}
+const putBlob = (k, b) => idb('readwrite', (s) => s.put(b, k)).catch(() => {});
+const getBlob = (k) => idb('readonly', (s) => s.get(k)).catch(() => null);
+const delBlob = (k) => idb('readwrite', (s) => s.delete(k)).catch(() => {});
+const urls = new Map(); // blob key -> object URL
+async function urlFor(key) {
+  if (urls.has(key)) return urls.get(key);
+  const b = await getBlob(key); const u = b ? URL.createObjectURL(b) : null;
+  urls.set(key, u); return u;
 }
 
-function fullPrompt(it) { return [it.prompt, STYLES.find((s) => s.id === it.style)?.s].filter(Boolean).join(', '); }
-function legacyUrl(it) {
-  const [w, h] = ASPECTS[it.aspect];
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt(it))}?width=${w}&height=${h}&seed=${it.seed}&model=${it.engine}&nologo=true`;
-}
+// ---------------- State ----------------
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const uid = () => Math.random().toString(36).slice(2, 10);
+const S = {
+  engine: 'checking', locked: false,
+  kind: 'image', model: ls.get('studioModel', 'flux-schnell'), style: 'cinematic', camera: 'dolly-in', aspect: '1:1',
+  steps: {}, guidance: {}, negative: '', strength: 0.6, input: null, // input = { key, label } blob key of start image
+  tab: 'all', selecting: false, selected: new Set(), lastClicked: null, pending: null,
+  runs: ls.get('studioRuns', []), uploads: ls.get('studioUploads', []),
+};
+const model = () => MODELS.find((m) => m.id === S.model) || MODELS[0];
+const save = () => {
+  const dropped = S.runs.filter((r) => !r.fav).slice(MAX_HISTORY);
+  dropped.forEach((r) => delBlob(r.id));
+  S.runs = S.runs.filter((r) => !dropped.includes(r));
+  ls.set('studioRuns', S.runs); ls.set('studioUploads', S.uploads);
+};
+// Runs that were mid-flight when the page closed cannot resume.
+S.runs.forEach((r) => { if (r.status === 'loading') { r.status = 'failed'; r.error = 'Interrupted when the page closed.'; } });
 
-async function runCloud(it) {
+// ---------------- Engine ----------------
+const inFlight = () => S.runs.filter((r) => r.status === 'loading').length;
+function lamp() {
+  const el = $('lamp'); const n = inFlight();
+  el.className = 'lamp ' + (S.engine !== 'ready' ? '' : n ? 'busy' : 'ready');
+  $('lampText').textContent = S.engine === 'checking' ? 'Checking engine…'
+    : S.engine !== 'ready' ? 'Engine not set up' : n ? `Generating ${n}…` : 'Ready · free engine';
+}
+async function api(path, body) {
+  const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, password: $('pw').value }) });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Error ${res.status}`); }
+  return res;
+}
+async function blobToB64(blob) {
+  const buf = new Uint8Array(await blob.arrayBuffer()); let s = '';
+  for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function fullPrompt(r) { return [r.prompt, STYLES.find((s) => s.id === r.style)?.s].filter(Boolean).join(', '); }
+
+async function run(r) {
   try {
-    const steps = ENGINES.cloud.find((e) => e.id === it.engine)?.steps || 4;
-    const res = await fetch('/api/image', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: fullPrompt(it), seed: it.seed, steps, password: $('pw').value }) });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Error ${res.status}`); }
-    const blob = await res.blob();
-    await putImg(it.id, blob);
-    blobUrls.set(it.id, URL.createObjectURL(blob));
-    it.status = 'done';
-  } catch (e) { it.status = 'failed'; it.error = e.message; }
+    const m = MODELS.find((x) => x.id === r.model);
+    const [w, h] = SIZES[m.sizes][r.aspect] || Object.values(SIZES[m.sizes])[0];
+    const body = { model: r.model, prompt: fullPrompt(r), seed: r.seed, steps: r.steps, guidance: r.guidance, negative: r.negative, width: w, height: h };
+    if (r.input) { const b = await getBlob(r.input.key); if (!b) throw new Error('The start image is no longer on this device.'); body.image_b64 = await blobToB64(b); body.strength = r.strength; }
+    const blob = await (await api('/api/image', body)).blob();
+    await putBlob(r.id, blob); urls.set(r.id, URL.createObjectURL(blob));
+    r.status = 'done';
+  } catch (e) { r.status = 'failed'; r.error = e.message; }
+  save(); render(); lamp();
+}
+
+function launch(spec) {
+  const r = { ...spec, id: uid(), at: Date.now(), fav: false, status: 'loading', error: null };
+  S.runs.unshift(r); run(r); return r;
+}
+
+function currentSpec(seed) {
+  const m = model();
+  return {
+    kind: S.kind, model: m.id, modelLabel: m.label, prompt: $('prompt').value.trim(), style: S.style, camera: S.camera,
+    aspect: SIZES[m.sizes][S.aspect] ? S.aspect : Object.keys(SIZES[m.sizes])[0],
+    steps: S.steps[m.id] ?? m.steps.def, guidance: m.guidance ? (S.guidance[m.id] ?? m.guidance.def) : undefined,
+    negative: m.negative ? S.negative : '', input: m.image ? S.input : null, strength: S.strength, seed,
+  };
+}
+
+function generate() {
+  const m = model(); const prompt = $('prompt').value.trim();
+  const err = (t) => { $('err').textContent = t; };
+  if (S.engine !== 'ready') return err('The free engine is not set up yet. See the steps in the gallery.');
+  if (!prompt) return err('Write a prompt first.');
+  if (m.image === 'required' && !S.input) return err('Add a start image for this model.');
+  if (S.locked && !$('pw').value) { $('pw').focus(); return err('Enter your studio password first.'); }
+  err(''); ls.set('studioPw', $('pw').value);
+  const fixed = $('seed').value.trim(); const n = Number($('count').value);
+  for (let k = 0; k < n; k++) launch(currentSpec(/^\d+$/.test(fixed) ? Number(fixed) + k : Math.floor(Math.random() * 1e9)));
+  save(); setTab(S.tab === 'uploads' || S.tab === 'fav' ? 'all' : S.tab); lamp();
+}
+
+// ---------------- Composer ----------------
+function chips(el, items, get, set) {
+  el.innerHTML = items.map((it) => `<button type="button" data-v="${it.id}" class="${get() === it.id ? 'on' : ''}">${esc(it.label)}</button>`).join('');
+  el.onclick = (e) => { const v = e.target.closest('button')?.dataset.v; if (v) { set(v); chips(el, items, get, set); } };
+}
+function slider(label, id, cfg, val, step, onInput) {
+  return `<div class="slider"><label class="h" for="${id}" style="margin:0">${label}</label><output id="${id}O">${val}</output>
+    <input type="range" id="${id}" min="${cfg.min}" max="${cfg.max}" step="${step}" value="${val}"></div>`;
+}
+function renderComposer() {
+  const m = model();
+  $('pickBtn').innerHTML = `<span>${esc(m.label)}</span><span class="tag ${COST[m.cost][1]}">${COST[m.cost][0]}</span>`;
+  [...$('kindSeg').children].forEach((b) => b.classList.toggle('on', b.dataset.kind === S.kind));
+  $('cameraWrap').hidden = S.kind !== 'motion';
+  $('goText').textContent = S.kind === 'motion' ? 'Generate motion clip' : 'Generate';
+  // Aspect: only what this model declares.
+  const aspects = Object.keys(SIZES[m.sizes]);
+  if (!aspects.includes(S.aspect)) S.aspect = aspects.includes('16:9') ? '16:9' : aspects[0];
+  $('aspectWrap').hidden = aspects.length < 2;
+  chips($('aspects'), aspects.map((a) => ({ id: a, label: a })), () => S.aspect, (v) => { S.aspect = v; });
+  chips($('styles'), STYLES, () => S.style, (v) => { S.style = v; });
+  chips($('cameras'), CAMERAS, () => S.camera, (v) => { S.camera = v; });
+  // Start image slot.
+  $('slotWrap').hidden = !m.image;
+  $('slotLabel').textContent = m.image === 'required' ? 'Start image (required)' : 'Start image (optional)';
+  if (S.input) urlFor(S.input.key).then((u) => { $('slot').innerHTML = `${u ? `<img src="${u}" alt="">` : ''}<span class="grow">${esc(S.input.label)}</span><button class="btn" id="slotChange">Change</button><button class="btn" id="slotClear">Remove</button>`; });
+  else $('slot').innerHTML = `<span class="grow">Start from one of your photos or a past result.</span><button class="btn" id="slotChange">Add image</button>`;
+  // Advanced: rendered from the model's allow-list.
+  const steps = S.steps[m.id] ?? m.steps.def;
+  let adv = slider('Steps', 'stepsR', m.steps, steps, 1);
+  if (m.guidance) adv += slider('Guidance', 'guideR', m.guidance, S.guidance[m.id] ?? m.guidance.def, 0.5);
+  if (m.image && S.input) adv += slider('Change from start image', 'strR', { min: 0.1, max: 1 }, S.strength, 0.05);
+  if (m.negative) adv += `<div><label class="h" for="neg">Avoid (negative prompt)</label><input type="text" id="neg" value="${esc(S.negative)}" placeholder="blurry, text, watermark"></div>`;
+  $('adv').innerHTML = adv;
+  const bind = (id, fn) => { const el = $(id); if (el) el.oninput = () => { $(id + 'O').textContent = el.value; fn(Number(el.value)); }; };
+  bind('stepsR', (v) => { S.steps[m.id] = v; });
+  bind('guideR', (v) => { S.guidance[m.id] = v; });
+  bind('strR', (v) => { S.strength = v; });
+  if ($('neg')) $('neg').oninput = (e) => { S.negative = e.target.value; };
+}
+$('slot').onclick = (e) => {
+  if (e.target.id === 'slotChange') openAssets();
+  if (e.target.id === 'slotClear') { S.input = null; renderComposer(); }
+};
+$('kindSeg').onclick = (e) => { const k = e.target.dataset.kind; if (k) { S.kind = k; renderComposer(); } };
+
+// Searchable model picker
+function renderPicker() {
+  const q = $('pickSearch').value.toLowerCase();
+  $('pickList').innerHTML = MODELS.filter((m) => (m.label + m.blurb).toLowerCase().includes(q)).map((m) => `
+    <button class="opt ${m.id === S.model ? 'on' : ''}" role="option" data-m="${m.id}"><b>${esc(m.label)}<span class="tag ${COST[m.cost][1]}">${COST[m.cost][0]}</span></b><span>${esc(m.blurb)}</span></button>`).join('')
+    || '<p class="note">No model matches.</p>';
+}
+function togglePicker(open) {
+  $('pop').hidden = !open; $('pickBtn').setAttribute('aria-expanded', open);
+  if (open) { $('pickSearch').value = ''; renderPicker(); $('pickSearch').focus(); }
+}
+$('pickBtn').onclick = () => togglePicker($('pop').hidden);
+$('pickSearch').oninput = renderPicker;
+$('pickList').onclick = (e) => { const id = e.target.closest('[data-m]')?.dataset.m; if (id) { S.model = id; ls.set('studioModel', id); togglePicker(false); renderComposer(); } };
+document.addEventListener('click', (e) => { if (!$('pop').hidden && !e.target.closest('.picker')) togglePicker(false); });
+
+$('enhance').onclick = async () => {
+  const p = $('prompt').value.trim(); if (!p) { $('err').textContent = 'Write a prompt first, then enhance it.'; return; }
+  if (S.engine !== 'ready') { $('err').textContent = 'The free engine is not set up yet.'; return; }
+  $('enhance').disabled = true; $('enhance').textContent = '✨ Thinking…'; $('err').textContent = '';
+  try { const r = await (await api('/api/enhance', { prompt: p })).json(); $('prompt').value = r.prompt; }
+  catch (e) { $('err').textContent = e.message; }
+  finally { $('enhance').disabled = false; $('enhance').textContent = '✨ Enhance'; }
+};
+$('go').onclick = generate;
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); generate(); }
+  if (e.key === 'Escape' && S.selecting && !$('viewer').open && !$('assetDlg').open) exitSelect();
+});
+
+// ---------------- Asset picker (uploads + history) ----------------
+let assetTab = 'uploads';
+function openAssets() { renderAssets(); $('assetDlg').showModal(); }
+async function renderAssets() {
+  [...$('assetTabs').children].forEach((b) => b.setAttribute('aria-selected', b.dataset.a === assetTab));
+  const list = assetTab === 'uploads'
+    ? S.uploads.map((u) => ({ key: 'u:' + u.id, label: u.name }))
+    : S.runs.filter((r) => r.status === 'done').map((r) => ({ key: r.id, label: r.prompt.slice(0, 40) }));
+  if (!list.length) { $('assetGrid').innerHTML = `<p class="note">${assetTab === 'uploads' ? 'No uploads yet. Tap Upload photo.' : 'No finished results yet.'}</p>`; return; }
+  const items = await Promise.all(list.map(async (a) => ({ ...a, url: await urlFor(a.key) })));
+  $('assetGrid').innerHTML = items.filter((a) => a.url).map((a) => `<button data-k="${a.key}" data-l="${esc(a.label)}" title="${esc(a.label)}"><img src="${a.url}" alt=""></button>`).join('');
+}
+$('assetTabs').onclick = (e) => { const a = e.target.dataset.a; if (a) { assetTab = a; renderAssets(); } };
+$('assetGrid').onclick = (e) => { const b = e.target.closest('[data-k]'); if (!b) return; S.input = { key: b.dataset.k, label: b.dataset.l }; $('assetDlg').close(); renderComposer(); };
+$('assetClose').onclick = () => $('assetDlg').close();
+async function addUpload(file) {
+  // Downscale to 1024px max so uploads stay small and fit the models.
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9));
+  const u = { id: uid(), name: file.name || 'Photo', at: Date.now(), w: c.width, h: c.height };
+  await putBlob('u:' + u.id, blob); S.uploads.unshift(u); save();
+  return u;
+}
+$('file').onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const u = await addUpload(f); S.input = { key: 'u:' + u.id, label: u.name }; $('assetDlg').close(); renderComposer(); render(); }
+  catch { $('assetGrid').insertAdjacentHTML('afterbegin', '<p class="err">That file could not be read as an image.</p>'); }
+};
+
+// ---------------- Gallery ----------------
+function visible() {
+  if (S.tab === 'uploads') return [];
+  return S.runs.filter((r) => S.tab === 'all' || (S.tab === 'fav' ? r.fav : r.kind === S.tab));
+}
+function setTab(t) { S.tab = t; render(); }
+function renderTabs() {
+  const count = { all: S.runs.length, image: S.runs.filter((r) => r.kind === 'image').length, motion: S.runs.filter((r) => r.kind === 'motion').length, fav: S.runs.filter((r) => r.fav).length, uploads: S.uploads.length };
+  $('tabs').innerHTML = TABS.map((t) => `<button role="tab" data-t="${t.id}" aria-selected="${S.tab === t.id}" tabindex="${S.tab === t.id ? 0 : -1}">${t.label}<span class="n">${count[t.id]}</span></button>`).join('');
+}
+$('tabs').onclick = (e) => { const t = e.target.closest('[data-t]')?.dataset.t; if (t) setTab(t); };
+$('tabs').onkeydown = (e) => {
+  if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  const i = TABS.findIndex((t) => t.id === S.tab); const n = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length];
+  setTab(n.id); $('tabs').querySelector(`[data-t="${n.id}"]`).focus();
+};
+
+function ratio(r) { const m = MODELS.find((x) => x.id === r.model); const s = SIZES[m?.sizes || 'sq'][r.aspect] || [1, 1]; return `${s[0]} / ${s[1]}`; }
+function tile(r) {
+  const src = urls.get(r.id);
+  if (r.status === 'done' && !urls.has(r.id)) urlFor(r.id).then((u) => { if (u) render(); else { r.status = 'failed'; r.error = 'Image no longer on this device.'; save(); render(); } });
+  const motion = r.kind === 'motion' ? `m-${r.camera}` : '';
+  let media;
+  if (r.status === 'failed') media = `<div class="media" style="aspect-ratio:${ratio(r)}"><div class="fail">${esc(r.error || "Didn't generate.")}<br><button class="btn" data-retry="${r.id}" style="margin-top:8px">Retry</button></div></div>`;
+  else if (r.status === 'loading' || !src) media = `<div class="media loading" style="aspect-ratio:${ratio(r)}"></div>`;
+  else media = `<div class="media ${motion}" data-open="${r.id}" style="aspect-ratio:${ratio(r)}"><img src="${src}" alt="${esc(r.prompt)}">${r.kind === 'motion' ? `<span class="badge">▶ ${esc(CAMERAS.find((c) => c.id === r.camera)?.label)}</span>` : ''}</div>`;
+  return `<div class="tile ${S.selected.has(r.id) ? 'sel' : ''}">
+    ${media}
+    ${r.status !== 'loading' ? `<button class="check ${S.selected.has(r.id) ? 'on' : ''}" data-check="${r.id}" aria-label="Select">${S.selected.has(r.id) ? '✓' : ''}</button>` : ''}
+    <div class="meta"><p title="${esc(r.prompt)}">${esc(r.prompt)}</p>
+      <div class="line"><span>${esc(r.modelLabel)}</span>
+        <span class="acts">
+          <button data-fav="${r.id}" title="Favorite" aria-label="Favorite">${r.fav ? '★' : '☆'}</button>
+          <button data-reuse="${r.id}" title="Reuse settings" aria-label="Reuse settings">↺</button>
+          <button data-del="${r.id}" title="Delete" aria-label="Delete">✕</button>
+        </span></div></div></div>`;
+}
+async function renderUploads() {
+  if (!S.uploads.length) return `<div class="empty"><b>No uploads yet</b>Upload a photo to restyle it or use it as a starting point.<button class="btn" id="emptyUpload">Upload photo</button></div>`;
+  const items = await Promise.all(S.uploads.map(async (u) => ({ ...u, url: await urlFor('u:' + u.id) })));
+  return `<div class="grid">${items.map((u) => `<div class="tile"><div class="media" style="aspect-ratio:${u.w} / ${u.h}">${u.url ? `<img src="${u.url}" alt="">` : ''}</div>
+    <div class="meta"><div class="line"><span>${esc(u.name)}</span><span class="acts"><button data-useup="${u.id}" title="Use as start image">Use</button><button data-delup="${u.id}" title="Delete" aria-label="Delete">✕</button></span></div></div></div>`).join('')}</div>`;
+}
+function emptyState() {
+  if (S.engine === 'missing') return `<div class="empty setup"><b>Set up the free engine (one time, about 5 minutes)</b>
+    This page needs to run on Cloudflare to generate images. You are viewing a copy that has no engine.
+    <ol><li>Sign up free at dash.cloudflare.com.</li><li>Workers &amp; Pages → Create → Import a repository → pick Studio → Deploy.</li>
+    <li>Open the workers.dev link Cloudflare gives you and use that from now on.</li></ol></div>`;
+  if (S.tab === 'fav') return `<div class="empty">No favorites yet. Tap ☆ on any result to keep it here for good.</div>`;
+  return `<div class="empty"><b>Nothing here yet</b>Pick a starter or write your own prompt.
+    <div class="chips">${STARTERS.map((s, i) => `<button type="button" data-starter="${i}">${esc(s)}</button>`).join('')}</div></div>`;
+}
+let renderSeq = 0;
+async function render() {
+  const seq = ++renderSeq;
+  renderTabs(); renderBars(); lamp();
+  $('selectBtn').textContent = S.selecting ? 'Done' : 'Select';
+  $('selectBtn').hidden = S.tab === 'uploads';
+  if (S.tab === 'uploads') { const html = await renderUploads(); if (seq === renderSeq) $('grid').innerHTML = html; return; }
+  const list = visible();
+  $('grid').className = S.selecting ? 'selecting' : '';
+  $('grid').innerHTML = list.length ? `<div class="grid">${list.map(tile).join('')}</div>` : emptyState();
+}
+
+function selectRange(id, shift) {
+  const list = visible().filter((r) => r.status !== 'loading').map((r) => r.id);
+  if (shift && S.lastClicked && list.includes(S.lastClicked)) {
+    const [a, b] = [list.indexOf(S.lastClicked), list.indexOf(id)].sort((x, y) => x - y);
+    list.slice(a, b + 1).forEach((x) => S.selected.add(x));
+  } else S.selected.has(id) ? S.selected.delete(id) : S.selected.add(id);
+  S.lastClicked = id; S.selecting = S.selected.size > 0 || S.selecting;
+}
+function exitSelect() { S.selecting = false; S.selected.clear(); render(); }
+$('selectBtn').onclick = () => { if (S.selecting) exitSelect(); else { S.selecting = true; render(); } };
+
+$('grid').onclick = async (e) => {
+  const t = e.target.closest('button,[data-open]'); if (!t) return;
+  const d = t.dataset; const find = (id) => S.runs.find((r) => r.id === id);
+  if (d.starter) { $('prompt').value = STARTERS[d.starter]; $('prompt').focus(); return; }
+  if (t.id === 'emptyUpload') { $('file').click(); return; }
+  if (d.check) { selectRange(d.check, e.shiftKey); return render(); }
+  if (d.open && S.selecting) { selectRange(d.open, e.shiftKey); return render(); }
+  if (d.fav) { const r = find(d.fav); r.fav = !r.fav; save(); return render(); }
+  if (d.del) return removeRuns([d.del]);
+  if (d.reuse) return reuse(find(d.reuse));
+  if (d.retry) { const r = find(d.retry); S.runs = S.runs.filter((x) => x !== r); launch({ ...r, id: undefined }); save(); return render(); }
+  if (d.useup) { const u = S.uploads.find((x) => x.id === d.useup); if (!model().image) { S.model = 'sdxl-lightning'; } S.input = { key: 'u:' + u.id, label: u.name }; renderComposer(); $('prompt').focus(); return; }
+  if (d.delup) { const id = d.delup; S.uploads = S.uploads.filter((u) => u.id !== id); delBlob('u:' + id); if (S.input?.key === 'u:' + id) S.input = null; save(); renderComposer(); return render(); }
+  if (d.open) openViewer(d.open);
+};
+
+function reuse(r) {
+  Object.assign(S, { kind: r.kind, model: r.model, style: r.style, camera: r.camera, aspect: r.aspect, negative: r.negative || '', strength: r.strength ?? 0.6, input: r.input || null });
+  S.steps[r.model] = r.steps; if (r.guidance != null) S.guidance[r.model] = r.guidance;
+  $('prompt').value = r.prompt; $('seed').value = r.seed;
+  renderComposer(); $('prompt').focus();
+  if ($('viewer').open) $('viewer').close();
+}
+
+// Delete with a 6-second undo.
+function removeRuns(ids) {
+  if (S.pending) finalizeDelete();
+  const removed = S.runs.filter((r) => ids.includes(r.id));
+  S.runs = S.runs.filter((r) => !ids.includes(r.id));
+  ids.forEach((id) => S.selected.delete(id));
+  S.pending = { removed, timer: setTimeout(finalizeDelete, 6000) };
   save(); render();
 }
+function finalizeDelete() { if (!S.pending) return; clearTimeout(S.pending.timer); S.pending.removed.forEach((r) => { delBlob(r.id); urls.delete(r.id); }); S.pending = null; renderBars(); }
+function undoDelete() { if (!S.pending) return; clearTimeout(S.pending.timer); S.runs.push(...S.pending.removed); S.runs.sort((a, b) => b.at - a.at); S.pending = null; save(); render(); }
 
-function chips(el, items, key) {
-  el.innerHTML = items.map((it) => `<button type="button" data-v="${it.id}" class="${state[key] === it.id ? 'on' : ''}">${it.label}</button>`).join('');
-  el.onclick = (e) => { const v = e.target.dataset.v; if (v) { state[key] = v; chips(el, items, key); } };
-}
-
-function mediaHtml(it, big) {
-  const cls = it.kind === 'motion' ? `m-${it.camera}` : '';
-  const ar = it.aspect.replace(':', '/');
-  const badge = it.kind === 'motion' && !big ? `<span class="badge">▶ ${esc(CAMERAS.find((c) => c.id === it.camera)?.label)}</span>` : '';
-  if (it.status === 'failed') return `<div class="media" style="aspect-ratio:${ar}"><span class="failed" style="padding:12px;text-align:center">${esc(it.error || "Didn't generate.")}<br>Tap ↻ to try again.</span></div>`;
-  let src = '';
-  if (it.mode === 'cloud') {
-    src = blobUrls.get(it.id) || '';
-    if (it.status === 'done' && !blobUrls.has(it.id)) loadImg(it.id).then((u) => { if (u) render(); else { it.status = 'failed'; it.error = 'Image no longer on this device.'; save(); render(); } });
-  } else src = it.url;
-  const waiting = it.status !== 'done' || !src;
-  return `<div class="media ${cls}" data-open="${it.id}" style="aspect-ratio:${ar}">
-    ${waiting ? '<div class="spin"></div>' : ''}
-    ${src ? `<img data-img="${it.id}" src="${esc(src)}" alt="${esc(it.prompt)}" ${it.status === 'done' ? '' : 'style="opacity:0"'}>` : ''}${badge}</div>`;
-}
-
-function render() {
-  const items = state.items.filter((i) => state.filter === 'all' || i.fav);
-  if (!items.length) { $('grid').innerHTML = `<div class="empty">${state.filter === 'fav' ? 'No favorites yet. Tap ☆ on any image.' : 'Nothing yet. Write a prompt and press Generate.'}</div>`; return; }
-  $('grid').innerHTML = items.map((it) => `
-    <div class="card">
-      ${mediaHtml(it)}
-      <div class="meta">
-        <p title="${esc(it.prompt)}">${esc(it.prompt)}</p>
-        <div class="row"><span>${it.kind === 'motion' ? 'Motion' : 'Image'} · seed ${it.seed}</span>
-          <span class="pill ${it.status === 'done' ? 'done' : it.status === 'failed' ? 'failed' : ''}">${it.status === 'done' ? 'ready' : it.status === 'failed' ? 'failed' : 'generating'}</span></div>
-        <div class="row"><span>${new Date(it.at).toLocaleString()}</span>
-          ${state.confirmDel === it.id
-            ? `<span class="confirm">Delete? <button data-yes="${it.id}">Yes</button><button data-no="1">No</button></span>`
-            : `<span><button data-fav="${it.id}" title="Favorite" aria-label="Favorite">${it.fav ? '★' : '☆'}</button>
-              <button data-retry="${it.id}" title="New variation" aria-label="New variation">↻</button>
-              <button data-reuse="${it.id}" title="Reuse settings" aria-label="Reuse settings">✎</button>
-              <button data-del="${it.id}" title="Delete" aria-label="Delete">✕</button></span>`}</div>
-      </div>
-    </div>`).join('');
-  // Legacy images load straight from the URL; track load/error so the gallery remembers the result.
-  document.querySelectorAll('img[data-img]').forEach((img) => {
-    const it = state.items.find((i) => i.id === img.dataset.img);
-    if (it.mode === 'cloud' || it.status === 'done') return;
-    const ok = () => {
-      it.status = 'done'; save(); img.style.opacity = 1;
-      img.parentElement.querySelector('.spin')?.remove();
-      const pill = img.closest('.card').querySelector('.pill'); pill.className = 'pill done'; pill.textContent = 'ready';
-    };
-    const bad = () => { it.status = 'failed'; it.error = 'The backup engine refused this one.'; save(); render(); };
-    if (img.complete && img.naturalWidth) ok(); else { img.onload = ok; img.onerror = bad; }
-  });
-}
-
-function start(src) {
-  const it = { ...src, id: uid(), at: Date.now(), fav: false, status: 'loading', error: null, mode: state.mode };
-  if (it.mode === 'cloud') runCloud(it); else it.url = legacyUrl(it);
-  state.items.unshift(it);
-  return it;
-}
-
-function addItems() {
-  const prompt = $('prompt').value.trim();
-  if (!prompt) { $('err').textContent = 'Write a prompt first.'; return; }
-  if (state.locked && !$('pw').value) { $('err').textContent = 'Enter your studio password first.'; $('pw').focus(); return; }
-  $('err').textContent = '';
-  ls.set('studioPw', $('pw').value);
-  const fixed = $('seed').value.trim();
-  for (let k = 0; k < Number($('count').value); k++) {
-    start({ kind: state.kind, prompt, style: state.style, camera: state.camera, aspect: state.aspect, engine: $('engine').value,
-      seed: /^\d+$/.test(fixed) ? Number(fixed) + k : Math.floor(Math.random() * 1e9) });
+function renderBars() {
+  let html = '';
+  if (S.selecting) {
+    const n = S.selected.size;
+    html += `<div class="bar"><span class="grow">${n ? `${n} selected` : 'Tap results to select. Shift-click selects a range.'}</span>
+      <button class="btn" data-bulk="dl" ${n ? '' : 'disabled'}>Download</button><button class="btn" data-bulk="fav" ${n ? '' : 'disabled'}>Favorite</button>
+      <button class="btn" data-bulk="unfav" ${n ? '' : 'disabled'}>Unfavorite</button><button class="btn" data-bulk="del" ${n ? '' : 'disabled'}>Delete</button>
+      <button class="btn" data-bulk="done">Done</button><span class="note" id="dlNote" style="width:100%;margin:0" hidden></span></div>`;
   }
-  save(); state.filter = 'all'; setFilter(); render();
+  if (S.pending) html += `<div class="bar"><span class="grow">Deleted ${S.pending.removed.length} result${S.pending.removed.length > 1 ? 's' : ''}.</span><button class="btn" data-undo="1">Undo</button><div class="drain"></div></div>`;
+  $('bars').innerHTML = html;
 }
-
-function setFilter() { [...$('filter').children].forEach((b) => b.classList.toggle('on', b.dataset.f === state.filter)); }
-
-$('grid').onclick = (e) => {
-  const t = e.target.closest('button,[data-open]'); if (!t) return;
-  const d = t.dataset; const find = (id) => state.items.find((i) => i.id === id);
-  if (d.fav) { const it = find(d.fav); it.fav = !it.fav; save(); return render(); }
-  if (d.del) { state.confirmDel = d.del; return render(); }
-  if (d.no) { state.confirmDel = null; return render(); }
-  if (d.yes) { state.items = state.items.filter((i) => i.id !== d.yes); delImg(d.yes); state.confirmDel = null; save(); return render(); }
-  if (d.retry) { start({ ...find(d.retry), engine: $('engine').value, seed: Math.floor(Math.random() * 1e9) }); save(); return render(); }
-  if (d.reuse) {
-    const it = find(d.reuse);
-    Object.assign(state, { kind: it.kind, style: it.style, camera: it.camera, aspect: it.aspect });
-    $('prompt').value = it.prompt; $('seed').value = it.seed;
-    return setup();
-  }
-  if (d.open) {
-    const it = find(d.open); if (it.status !== 'done') return;
-    const src = it.mode === 'cloud' ? blobUrls.get(it.id) : it.url; if (!src) return;
-    $('viewerMedia').innerHTML = `<div class="${it.kind === 'motion' ? 'm-' + it.camera : ''}" style="overflow:hidden"><img src="${esc(src)}" alt=""></div>`;
-    $('viewerPrompt').textContent = it.prompt;
-    $('viewerActions').innerHTML = `<a href="${esc(src)}" target="_blank" rel="noopener" ${it.mode === 'cloud' ? `download="studio-${it.id}.jpg"` : ''}>Save image</a><button type="button" id="closeV">Close</button>`;
-    $('closeV').onclick = () => $('viewer').close();
-    $('viewer').showModal();
+$('bars').onclick = async (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.undo) return undoDelete();
+  const ids = [...S.selected];
+  switch (b.dataset.bulk) {
+    case 'fav': case 'unfav': S.runs.forEach((r) => { if (ids.includes(r.id)) r.fav = b.dataset.bulk === 'fav'; }); save(); return render();
+    case 'del': return removeRuns(ids);
+    case 'done': return exitSelect();
+    case 'dl': return bulkDownload(ids);
   }
 };
+async function download(r) {
+  const u = await urlFor(r.id); if (!u) return false;
+  const blob = await getBlob(r.id);
+  const a = document.createElement('a'); a.href = u; a.download = `studio-${r.id}.${blob?.type === 'image/png' ? 'png' : 'jpg'}`;
+  document.body.appendChild(a); a.click(); a.remove(); return true;
+}
+async function bulkDownload(ids) {
+  const note = $('dlNote'); note.hidden = false; let ok = 0; const missing = [];
+  for (const [i, id] of ids.entries()) {
+    note.textContent = `Downloading ${i + 1} of ${ids.length}…`;
+    const r = S.runs.find((x) => x.id === id);
+    if (r && r.status === 'done' && await download(r)) ok++; else missing.push(id);
+    await new Promise((res) => setTimeout(res, 400));
+  }
+  note.textContent = `Downloaded ${ok} of ${ids.length}.${missing.length ? ` ${missing.length} had no image to save.` : ''}`;
+}
+
+// ---------------- Viewer ----------------
+let viewing = null;
+async function openViewer(id) {
+  const list = visible().filter((r) => r.status === 'done'); const r = list.find((x) => x.id === id); if (!r) return;
+  viewing = id;
+  const u = await urlFor(r.id);
+  $('vStage').innerHTML = `<div class="${r.kind === 'motion' ? 'm-' + r.camera : ''}" style="overflow:hidden">${u ? `<img src="${u}" alt="">` : ''}</div>`;
+  $('vPrompt').textContent = r.prompt;
+  const kv = [['Model', r.modelLabel], ['Type', r.kind === 'motion' ? `Motion · ${CAMERAS.find((c) => c.id === r.camera)?.label}` : 'Image'],
+    ['Aspect', r.aspect], ['Style', STYLES.find((s) => s.id === r.style)?.label], ['Steps', r.steps], r.guidance != null && ['Guidance', r.guidance],
+    r.negative && ['Avoid', r.negative], r.input && ['Start image', `${r.input.label} · change ${r.strength}`], ['Seed', r.seed], ['Made', new Date(r.at).toLocaleString()]].filter(Boolean);
+  $('vKv').innerHTML = kv.map(([k, v]) => `<span>${k}</span><b>${esc(v)}</b>`).join('');
+  $('vActs').innerHTML = `<button class="btn" data-v="dl">Download</button><button class="btn" data-v="fav">${r.fav ? '★ Favorited' : '☆ Favorite'}</button>
+    <button class="btn" data-v="reuse">Reuse settings</button><button class="btn" data-v="recreate">Recreate</button><button class="btn" data-v="close">Close</button>`;
+  if (!$('viewer').open) $('viewer').showModal();
+}
+$('vActs').onclick = (e) => {
+  const v = e.target.dataset.v; const r = S.runs.find((x) => x.id === viewing); if (!v || !r) return;
+  if (v === 'dl') download(r);
+  if (v === 'fav') { r.fav = !r.fav; save(); render(); openViewer(r.id); }
+  if (v === 'reuse') reuse(r);
+  if (v === 'recreate') { launch({ ...r, id: undefined, seed: Math.floor(Math.random() * 1e9) }); save(); $('viewer').close(); render(); lamp(); }
+  if (v === 'close') $('viewer').close();
+};
+$('vCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('vPrompt').textContent); $('vCopy').textContent = 'Copied'; }
+  catch { const rg = document.createRange(); rg.selectNodeContents($('vPrompt')); getSelection().removeAllRanges(); getSelection().addRange(rg); $('vCopy').textContent = 'Selected'; }
+  setTimeout(() => { $('vCopy').textContent = 'Copy'; }, 1500);
+};
+$('viewer').addEventListener('keydown', (e) => {
+  if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  const list = visible().filter((r) => r.status === 'done'); const i = list.findIndex((r) => r.id === viewing);
+  const n = list[i + (e.key === 'ArrowRight' ? 1 : -1)]; if (n) openViewer(n.id);
+});
 $('viewer').onclick = (e) => { if (e.target === $('viewer')) $('viewer').close(); };
-$('kindTabs').onclick = (e) => { const k = e.target.dataset.kind; if (k) { state.kind = k; setup(); } };
-$('filter').onclick = (e) => { const f = e.target.dataset.f; if (f) { state.filter = f; setFilter(); render(); } };
-$('go').onclick = addItems;
-$('prompt').onkeydown = (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addItems(); };
+$('assetDlg').onclick = (e) => { if (e.target === $('assetDlg')) $('assetDlg').close(); };
 
-function setup() {
-  [...$('kindTabs').children].forEach((b) => b.classList.toggle('on', b.dataset.kind === state.kind));
-  $('cameraWrap').hidden = state.kind !== 'motion';
-  $('go').textContent = state.kind === 'motion' ? 'Generate motion clip' : 'Generate';
-  chips($('styles'), STYLES, 'style');
-  chips($('cameras'), CAMERAS, 'camera');
-  chips($('aspects'), Object.keys(ASPECTS).map((a) => ({ id: a, label: a })), 'aspect');
-}
-function setMode(mode, locked) {
-  state.mode = mode; state.locked = locked;
-  $('engine').innerHTML = ENGINES[mode].map((e) => `<option value="${e.id}">${e.label}</option>`).join('');
-  $('engineNote').textContent = NOTES[mode];
-  $('pwWrap').hidden = !locked;
-}
-
-// Items that were mid-generation when the page closed can't resume.
-state.items.forEach((i) => { i.mode ||= 'legacy'; if (i.status === 'loading' && i.mode === 'cloud') { i.status = 'failed'; i.error = 'Interrupted.'; } });
+// ---------------- Boot ----------------
 $('pw').value = ls.get('studioPw', '');
-setMode('legacy', false); setup(); render();
-// Use this site's own free engine when it has one (the Cloudflare version); otherwise fall back.
-fetch('/api/health').then((r) => r.ok ? r.json() : null).then((h) => { if (h?.ok) { setMode('cloud', h.locked); render(); } }).catch(() => {});
+if (!MODELS.some((m) => m.id === S.model)) S.model = MODELS[0].id;
+renderComposer(); render();
+fetch('/api/health').then((r) => (r.ok ? r.json() : null)).then((h) => {
+  S.engine = h?.ok ? 'ready' : 'missing'; S.locked = Boolean(h?.locked); $('pwWrap').hidden = !S.locked; render();
+}).catch(() => { S.engine = 'missing'; render(); });
 </script>
 </body>
 </html>
